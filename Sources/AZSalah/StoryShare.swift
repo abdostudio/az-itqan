@@ -3,8 +3,8 @@ import AppKit
 
 // MARK: - What goes on the card
 
-/// Sharing is kept for the iPhone version; on the Mac every entry point is hidden.
-enum StoryFeature { static let onMac = false }
+/// Share cards on the Mac: save and copy only (Instagram / WhatsApp buttons wait for the iPhone version).
+enum StoryFeature { static let onMac = true }
 
 enum StoryPool {
     static let rotator = Rotator(key: "recent.story", memory: 25)
@@ -238,13 +238,11 @@ struct StoryShareView: View {
                     Divider().overlay(AZ.line)
 
                     HStack(spacing: 8) {
-                        action(tr("ستوري إنستجرام"), "camera.fill", primary: true) { instaStory() }
-                        action(tr("حالة واتساب"), "circle.dashed", primary: true) { whatsapp() }
+                        action(tr("حفظ"), "arrow.down.circle", primary: true) { save() }
+                        action(tr("نسخ"), "doc.on.doc", primary: true) { copy() }
                     }
-                    HStack(spacing: 8) {
-                        action(tr("حفظ"), "arrow.down.circle") { save() }
-                        action(tr("نسخ"), "doc.on.doc") { copy() }
-                    }
+                    Text(tr("احفظها أو انسخها… وابعتها لموبايلك عشان تنزّلها ستوري أو حالة"))
+                        .font(AZFont.ui(11)).foregroundColor(AZ.muted).fixedSize(horizontal: false, vertical: true)
 
                     if !model.status.isEmpty {
                         Text(model.status).font(AZFont.ui(11.5)).foregroundColor(AZ.lime)

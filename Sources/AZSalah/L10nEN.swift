@@ -486,5 +486,6 @@ enum L10n {
         "على الموبايل: افتح الصورة ← مشاركة ← WhatsApp ← حالتي (My Status)": "On your phone: open the image → Share → WhatsApp → My Status",
         "اختار موبايلك من AirDrop.": "Pick your phone in AirDrop.",
         "AirDrop مش شغّال (فعّل البلوتوث والواي فاي). الصورة اتحفظت في Downloads واتنسخت… ابعتها لموبايلك.": "AirDrop isn't on (turn on Bluetooth and Wi‑Fi). The image is saved to Downloads and copied… send it to your phone.",
+        "احفظها أو انسخها… وابعتها لموبايلك عشان تنزّلها ستوري أو حالة": "Save or copy it… then send it to your phone to post as a story or status",
     ]
 }
