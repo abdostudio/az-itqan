@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var owed: Owed? { didSet { updateOwedUI() } }
     private var owedTimer: Timer?
     let ramadanWindow = RamadanWindowController()
+    let storyWindow = StoryShareWindowController()
     let adhkarWindow = AdhkarWindowController()
     private var ramadanTimer: Timer?
     private var breathWork: DispatchWorkItem?
@@ -144,6 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         notch.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
         notch.onConfirmOwed = { [weak self] in self?.confirmOwed() }
         notch.onOpenRamadan = { [weak self] in self?.ramadanWindow.show() }
+        storyWindow.engine = engine
+        notch.onShare = { [weak self] in self?.storyWindow.show() }
         notch.onOpenAdhkar = { [weak self] k in self?.adhkarWindow.show(k) }
         engine.onAdhkar = { [weak self] k in
             self?.whenUnlocked {
@@ -404,7 +407,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .prayed:
             if owed?.prayer == p { owed = nil }
             engine.objectWillChange.send()      // refill the fuel line right away
-            notch.show(.info(tr("تقبّل الله منك"), tr("اللهم اجعلنا من المقيمين الصلاة")), for: 6)
+            if settings.shareHint {
+                notch.show(.share(tr("تقبّل الله منك"), tr("شارك ذِكر النهارده؟ الدال على الخير كفاعله")), for: 8)
+            } else {
+                notch.show(.info(tr("تقبّل الله منك"), tr("اللهم اجعلنا من المقيمين الصلاة")), for: 6)
+            }
         case .emergency:
             startOwed(p, t)
             notch.show(.info(tr("ربنا ييسّر"), trf("هنفكّرك بصلاة %@ تاني بعد %@ دقيقة", p.arabic(friday: engine.isFriday), AR.num(settings.followUpMinutes))), for: 8)
@@ -501,6 +508,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: tr("أذكار الصباح"), action: #selector(openMorning), keyEquivalent: "").target = self
         menu.addItem(withTitle: tr("أذكار المساء"), action: #selector(openEvening), keyEquivalent: "").target = self
         menu.addItem(withTitle: tr("خطتي لرمضان…"), action: #selector(openRamadan), keyEquivalent: "").target = self
+        menu.addItem(withTitle: tr("شارك ستوري…"), action: #selector(openStory), keyEquivalent: "").target = self
         if let r = UpdateChecker.shared.latest {
             menu.addItem(withTitle: trf("حمّل التحديث %@…", r.version), action: #selector(downloadUpdate), keyEquivalent: "").target = self
         }
@@ -512,6 +520,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openSettings() { settingsWindow.show() }
     @objc private func openRamadan() { ramadanWindow.show() }
+    @objc private func openStory() { storyWindow.show() }
     @objc private func downloadUpdate() { UpdateChecker.shared.download() }
     @objc private func openMorning() { adhkarWindow.show(.morning) }
     @objc private func openEvening() { adhkarWindow.show(.evening) }

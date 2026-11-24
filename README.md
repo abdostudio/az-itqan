@@ -45,6 +45,8 @@ The app isn't notarized; on first launch use **System Settings → Privacy & Sec
 | `L10n.swift`, `L10nEN.swift` | Language switch and English text |
 
 ## Credits
+Quran text (share cards): [Tanzil Project](https://tanzil.net) — Uthmani text v1.1, CC BY 3.0, used verbatim. Tafsir: التفسير الميسر, King Fahad Quran Complex (via Tanzil).
+
 Adhan recordings from Wikimedia Commons: Adhan 1 — public domain; Adhan 2 — Atcovi, CC BY-SA 4.0; Adhan 3 — ejaz215, CC BY 3.0 (trimmed and faded).
 
 © AZ Creative — Abdelrahman Ahmed. All rights reserved.

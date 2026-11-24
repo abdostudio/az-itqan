@@ -8,6 +8,7 @@ APP="dist/AZ Itqan.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp -R Resources/adhan "$APP/Contents/Resources/adhan"
+cp -R Resources/fonts "$APP/Contents/Resources/fonts"
 cp .build/release/AZSalah "$APP/Contents/MacOS/AZSalah"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 # Update feed: the latest GitHub release's version.json (see release.sh / release.conf).

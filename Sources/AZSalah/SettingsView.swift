@@ -313,6 +313,11 @@ struct SettingsView: View {
             Button { onTestLock() } label: { Label(tr("جرّب شاشة الصلاة"), systemImage: "play.circle") }
         }
         BuddySettings(settings: settings)
+        Toggle(tr("بعد «صلّيت» اقترح أشارك ذِكر ستوري"), isOn: $settings.shareHint).font(AZFont.ui(12.5))
+        HStack(spacing: 6) {
+            Text(tr("آيات كروت المشاركة من نص مشروع Tanzil، والتفسير الميسّر من مجمع الملك فهد")).font(AZFont.ui(11)).foregroundColor(AZ.muted)
+            Link("tanzil.net", destination: URL(string: "https://tanzil.net")!).font(AZFont.ui(11))
+        }
     }
 
     @ViewBuilder private var alertRows: some View {

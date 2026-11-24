@@ -50,6 +50,7 @@ final class AppSettings: ObservableObject {
     @Published var fastingReminders: Bool { didSet { d.set(fastingReminders, forKey: "fastingReminders") } }
     /// Idle notch: "slim" = exactly the camera housing (covers nothing), "wings" = prayer + countdown beside it.
     @Published var buddyEnabled: Bool { didSet { d.set(buddyEnabled, forKey: "buddyEnabled") } }
+    @Published var shareHint: Bool { didSet { d.set(shareHint, forKey: "shareHint") } }
     @Published var buddyName: String { didSet { d.set(buddyName, forKey: "buddyName") } }
     @Published var buddyPhone: String { didSet { d.set(buddyPhone, forKey: "buddyPhone") } }
     @Published var rahimReminders: Bool { didSet { d.set(rahimReminders, forKey: "rahimReminders") } }
@@ -76,7 +77,7 @@ final class AppSettings: ObservableObject {
             "lockMinutes": 10, "doneAfterMinutes": 3, "snoozeMinutes": 5, "maxSnoozes": 1, "snoozeWindowMinutes": 10, "followUpMinutes": 20,
             "deferInMeetings": true, "preAlertMinutes": 10, "reminderMinutes": 10,
             "palestineReminders": true, "adhkarReminders": true, "sadaqaReminder": "daily", "duhaReminder": true, "qiyamReminder": true, "islandFloating": false, "islandScale": 1.0, "wirdEnabled": true, "wirdPages": 4, "wirdAfter": "fajr", "fastingReminders": true, "soundEnabled": true,
-            "soundName": "adhan-mix", "announcePrayer": true, "adhanVolume": 0.8, "customSoundPath": "", "peekSeconds": 7, "alwaysShowDhikr": false, "idleStyle": "slim", "idleWidth": 0.4, "idleLevel": 0, "rahimReminders": true, "buddyEnabled": true, "buddyName": "", "buddyPhone": "", "rahimWeekly": true, "rahimSeasons": true, "displayMode": "all",
+            "soundName": "adhan-mix", "announcePrayer": true, "adhanVolume": 0.8, "customSoundPath": "", "peekSeconds": 7, "alwaysShowDhikr": false, "idleStyle": "slim", "idleWidth": 0.4, "idleLevel": 0, "rahimReminders": true, "buddyEnabled": true, "shareHint": true, "buddyName": "", "buddyPhone": "", "rahimWeekly": true, "rahimSeasons": true, "displayMode": "all",
         ])
         cityID = d.string(forKey: "cityID") ?? "cairo"
         gpsLocation = Self.load("gpsLocation")
@@ -113,6 +114,7 @@ final class AppSettings: ObservableObject {
         idleStyle = d.string(forKey: "idleStyle") ?? "slim"
         rahimReminders = d.bool(forKey: "rahimReminders")
         buddyEnabled = d.bool(forKey: "buddyEnabled")
+        shareHint = d.bool(forKey: "shareHint")
         buddyName = d.string(forKey: "buddyName") ?? ""
         buddyPhone = d.string(forKey: "buddyPhone") ?? ""
         rahimWeekly = d.bool(forKey: "rahimWeekly")

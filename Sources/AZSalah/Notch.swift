@@ -8,6 +8,21 @@ enum AZFont {
     static func naskh(_ size: CGFloat) -> Font {
         NSFont(name: "Mishafi", size: size) != nil ? .custom("Mishafi", size: size) : .system(size: size)
     }
+    /// Quran text: Amiri Quran (bundled, OFL) draws the Uthmani marks correctly.
+    static func quran(_ size: CGFloat) -> Font {
+        registerBundled()
+        return NSFont(name: "Amiri Quran", size: size) != nil ? .custom("Amiri Quran", size: size) : naskh(size)
+    }
+    private static var registered = false
+    static func registerBundled() {
+        guard !registered else { return }
+        registered = true
+        let candidates = [Bundle.main.resourceURL?.appendingPathComponent("fonts/AmiriQuran.ttf"),
+                          URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources/fonts/AmiriQuran.ttf")]
+        for case let u? in candidates where FileManager.default.fileExists(atPath: u.path) {
+            CTFontManagerRegisterFontsForURL(u as CFURL, .process, nil); break
+        }
+    }
     static func ui(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font { .system(size: size, weight: weight, design: .rounded) }
 }
 
@@ -35,6 +50,7 @@ final class NotchModel: ObservableObject {
         case nafl(Nafl, Msg)
         case naflCheck(Nafl)
         case zakat(String, String)
+        case share(String, String)
     }
 
     @Published var expanded = false
@@ -81,6 +97,7 @@ final class NotchModel: ObservableObject {
 
     var onLockNow: ((Prayer) -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onShare: (() -> Void)?
 
     private var alertToken = 0
 
@@ -441,6 +458,7 @@ final class NotchController {
 
     var onLockNow: ((Prayer) -> Void)? { didSet { panels.forEach { $0.model.onLockNow = onLockNow } } }
     var onOpenSettings: (() -> Void)? { didSet { panels.forEach { $0.model.onOpenSettings = onOpenSettings } } }
+    var onShare: (() -> Void)? { didSet { panels.forEach { $0.model.onShare = onShare } } }
     var onConfirmOwed: (() -> Void)? { didSet { panels.forEach { $0.model.onConfirmOwed = onConfirmOwed } } }
     var onOpenRamadan: (() -> Void)? { didSet { panels.forEach { $0.model.onOpenRamadan = onOpenRamadan } } }
     var onNaflCommit: ((Nafl) -> Void)? { didSet { panels.forEach { $0.model.onNaflCommit = onNaflCommit } } }
@@ -484,6 +502,7 @@ final class NotchController {
                 p.model.onOpenAdhkar = onOpenAdhkar
                 p.model.onLockNow = onLockNow
                 p.model.onOpenSettings = onOpenSettings
+                p.model.onShare = onShare
                 panels.append(p)
             }
         }
@@ -1004,6 +1023,7 @@ struct AlertNotch: View {
         case .nafl(let k, _): return k == .duha ? tr("وقت صلاة الضحى") : tr("الثلث الأخير من الليل… قيام الليل")
         case .naflCheck(let k): return k.checkTitle
         case .zakat(let t, _): return t
+        case .share(let t, _): return t
         }
     }
     private var bodyText: String {
@@ -1020,6 +1040,7 @@ struct AlertNotch: View {
         case .sadaqa(let m): return m.text
         case .rahim(_, let m, _): return m.text
         case .zakat(_, let b): return b
+        case .share(_, let b): return b
         case .nafl(_, let m): return m.text
         case .naflCheck(let k): return k == .duha ? tr("لو صلّيتها، سجّلها عشان تبان في تقريرك") : tr("لو قمت، سجّلها عشان تبان في تقريرك")
         }
@@ -1104,6 +1125,12 @@ struct AlertNotch: View {
         } else if case .adhkar(let k, _) = alert {
             Button { model.openReader(k) } label: {
                 Text(tr("اقرأها")).font(AZFont.ui(11, .semibold)).foregroundColor(AZ.navy)
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Capsule().fill(AZ.accentGradient))
+            }.buttonStyle(.plain)
+        } else if case .share = alert {
+            Button { model.onShare?(); model.dismissAlert() } label: {
+                Label(tr("شارك"), systemImage: "square.and.arrow.up").font(AZFont.ui(11, .semibold)).foregroundColor(AZ.navy)
                     .padding(.horizontal, 12).padding(.vertical, 5)
                     .background(Capsule().fill(AZ.accentGradient))
             }.buttonStyle(.plain)
@@ -1270,6 +1297,12 @@ struct ExpandedNotch: View {
             .padding(2)
             .background(Capsule().fill(Color.white.opacity(0.06)))
             Spacer(minLength: 0)
+        }
+        .overlay(alignment: .leading) {
+            Button { model.onShare?() } label: {
+                Image(systemName: "square.and.arrow.up").font(.system(size: 11.5)).foregroundColor(AZ.muted)
+                    .frame(width: 24, height: 24).background(Circle().fill(Color.white.opacity(0.06)))
+            }.buttonStyle(.plain).help(tr("شارك ستوري"))
         }
         .overlay(alignment: .trailing) {
             Button { model.onOpenSettings?() } label: {
