@@ -90,7 +90,7 @@ import AppKit
         notch.hasNotch = true
         notch.ambient = nil
         notch.expanded = true
-        save("2-notch-expanded", notchScene(), CGSize(width: 640, height: 400))
+        save("2-notch-expanded", notchScene(), CGSize(width: 640, height: 470))
         AdhkarSession.shared.start(.morning)
         AdhkarSession.shared.counts = [0: 1, 1: 3]
         AdhkarSession.shared.index = 2

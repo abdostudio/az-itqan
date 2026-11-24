@@ -27,6 +27,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), CommandLine.argum
     exit(0)
 }
 
+if let i = CommandLine.arguments.firstIndex(of: "--fasting-preview"), CommandLine.arguments.count > i + 1 {
+    _ = NSApplication.shared
+    MainActor.assumeIsolated { FastingPreview.render(to: URL(fileURLWithPath: CommandLine.arguments[i + 1])) }
+    exit(0)
+}
+
 if let i = CommandLine.arguments.firstIndex(of: "--story"), CommandLine.arguments.count > i + 1 {
     _ = NSApplication.shared
     MainActor.assumeIsolated { StoryCards.render(to: URL(fileURLWithPath: CommandLine.arguments[i + 1])) }

@@ -382,3 +382,102 @@ enum MessagePicker {
         return (heads.randomElement()!, msg)
     }
 }
+
+// MARK: - Where you are in a fasting season (today), and what's coming tomorrow
+
+struct FastingStatus: Equatable {
+    let text: String
+    var dots = 0        // e.g. 3 for the white days
+    var filled = 0      // how many of them have started
+}
+
+extension Fasting {
+    private static let greg = Calendar(identifier: .gregorian)
+
+    private static func prohibited(_ h: (day: Int, month: Int, year: Int)) -> Bool {
+        (h.month == 10 && h.day == 1) || (h.month == 12 && (10...13).contains(h.day))
+    }
+    private static func whiteDaysOK(_ month: Int) -> Bool { month != 9 }   // in Ramadan the whole month is fasting
+
+    private static func days(_ n: Int) -> String {
+        n == 1 ? tr("يوم") : n == 2 ? tr("يومين") : trf("%@ أيام", AR.num(n))
+    }
+
+    /// One line for today: "النهارده تاني يوم من الأيام البيض · فاضل بكرة" (+ Monday/Thursday).
+    static func status(on day: Date, adjust: Int) -> FastingStatus? {
+        let h = Hijri.components(day, adjust: adjust)
+        if prohibited(h) { return nil }
+        let month = Hijri.monthNames[max(0, min(11, h.month - 1))]
+        var main: FastingStatus?
+        switch (h.month, h.day) {
+        case (9, _):
+            main = FastingStatus(text: trf("رمضان · اليوم %@", AR.num(h.day)))
+        case (12, 1...8):
+            main = FastingStatus(text: trf("العشر من ذي الحجة · اليوم %@ · فاضل %@ لعرفة", AR.num(h.day), days(9 - h.day)))
+        case (12, 9):
+            main = FastingStatus(text: tr("النهارده يوم عرفة"))
+        case (1, 8):
+            main = FastingStatus(text: tr("بكرة تاسوعاء، وبعده عاشوراء إن شاء الله"))
+        case (1, 9):
+            main = FastingStatus(text: tr("النهارده تاسوعاء · بكرة عاشوراء"))
+        case (1, 10):
+            main = FastingStatus(text: tr("النهارده عاشوراء"))
+        case (10, 2...):
+            main = FastingStatus(text: tr("أيام الست من شوال"))
+        default: break
+        }
+        if main == nil, whiteDaysOK(h.month), h.month != 12 || h.day >= 14 {
+            switch h.day {
+            case 12 where h.month != 12:
+                main = FastingStatus(text: trf("الأيام البيض بتبدأ بكرة إن شاء الله (١٣–١٥ %@)", month), dots: 3, filled: 0)
+            case 13:
+                main = FastingStatus(text: tr("النهارده أول يوم من الأيام البيض · فاضل يومين"), dots: 3, filled: 1)
+            case 14:
+                main = FastingStatus(text: h.month == 12 ? tr("النهارده من الأيام البيض · فاضل بكرة")
+                                                         : tr("النهارده تاني يوم من الأيام البيض · فاضل بكرة"), dots: 3, filled: 2)
+            case 15:
+                main = FastingStatus(text: tr("النهارده آخر يوم من الأيام البيض"), dots: 3, filled: 3)
+            default: break
+            }
+        }
+        let wd = greg.component(.weekday, from: day)
+        let weekly: String? = wd == 2 ? tr("يوم الاتنين") : wd == 5 ? tr("يوم الخميس") : nil
+        if var m = main {
+            if let weekly, h.month != 9 { m = FastingStatus(text: m.text + " + " + weekly, dots: m.dots, filled: m.filled) }
+            return m
+        }
+        if let weekly { return FastingStatus(text: trf("النهارده %@ — يوم صيام", weekly)) }
+        return nil
+    }
+
+    /// The evening reminder, about tomorrow: "بكرة تاني يوم من الأيام البيض".
+    static func tomorrowPhrase(after day: Date, adjust: Int) -> String? {
+        guard let t = greg.date(byAdding: .day, value: 1, to: day) else { return nil }
+        let h = Hijri.components(t, adjust: adjust)
+        if prohibited(h) { return nil }
+        var parts: [String] = []
+        switch (h.month, h.day) {
+        case (9, _): parts.append(trf("بكرة اليوم %@ من رمضان", AR.num(h.day)))
+        case (12, 1...8): parts.append(trf("بكرة اليوم %@ من العشر من ذي الحجة", AR.num(h.day)))
+        case (12, 9): parts.append(tr("بكرة يوم عرفة"))
+        case (1, 9): parts.append(tr("بكرة تاسوعاء"))
+        case (1, 10): parts.append(tr("بكرة عاشوراء"))
+        case (10, 2...): parts.append(tr("بكرة من أيام الست من شوال"))
+        default: break
+        }
+        if parts.isEmpty, whiteDaysOK(h.month), h.month != 12 || h.day >= 14 {
+            switch h.day {
+            case 13: parts.append(tr("بكرة أول يوم من الأيام البيض"))
+            case 14: parts.append(h.month == 12 ? tr("بكرة من الأيام البيض") : tr("بكرة تاني يوم من الأيام البيض"))
+            case 15: parts.append(tr("بكرة آخر يوم من الأيام البيض"))
+            default: break
+            }
+        }
+        if h.month != 9 {
+            let wd = greg.component(.weekday, from: t)
+            if wd == 2 { parts.append(parts.isEmpty ? tr("بكرة الاتنين") : tr("يوم الاتنين")) }
+            if wd == 5 { parts.append(parts.isEmpty ? tr("بكرة الخميس") : tr("يوم الخميس")) }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " + ")
+    }
+}

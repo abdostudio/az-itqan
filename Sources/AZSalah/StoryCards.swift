@@ -226,3 +226,60 @@ struct IslamicLattice: View {
         }
     }
 }
+
+/// Dev preview: the fasting line and the evening reminder across the white days (`--fasting-preview <dir>`).
+enum FastingPreview {
+    @MainActor static func render(to dir: URL) {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let settings = AppSettings.shared
+        let cal = Calendar(identifier: .gregorian)
+        // find the 12th of the current Hijri month
+        var start = Date()
+        for off in -20...20 {
+            let d = cal.date(byAdding: .day, value: off, to: Date())!
+            let h = Hijri.components(d, adjust: settings.hijriAdjust)
+            if h.day == 12 { start = d; break }
+        }
+        let days = (0..<4).map { cal.date(byAdding: .day, value: $0, to: start)! }
+        let board = VStack(alignment: .leading, spacing: 18) {
+            ForEach(Array(days.enumerated()), id: \.offset) { _, d in
+                let h = Hijri.components(d, adjust: settings.hijriAdjust)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 5) {
+                        Text(AR.weekday(d, tz: .current)); Text(AR.num(h.day)); Text(Hijri.monthNames[h.month - 1])
+                    }.font(AZFont.ui(13, .bold)).foregroundColor(AZ.lime)
+                    HStack(spacing: 10) {
+                        Text(tr("في النوتش:")).font(AZFont.ui(11)).foregroundColor(AZ.muted).frame(width: 70, alignment: .leading)
+                        if let s = Fasting.status(on: d, adjust: settings.hijriAdjust) { FastingChip(status: s) }
+                        else { Text("—").foregroundColor(AZ.muted) }
+                    }
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(tr("بعد المغرب:")).font(AZFont.ui(11)).foregroundColor(AZ.muted).frame(width: 70, alignment: .leading)
+                        if let p = Fasting.tomorrowPhrase(after: d, adjust: settings.hijriAdjust) {
+                            let m: NotchModel = { let m = NotchModel(); m.notchWidth = 185; m.notchHeight = 32
+                                m.alert = .fasting([p], ""); return m }()
+                            FastingSlim(model: m, text: m.fastingText ?? "")
+                                .frame(width: m.fastingSize.width, height: m.fastingSize.height)
+                                .background(UnevenRoundedRectangle(bottomLeadingRadius: 14, bottomTrailingRadius: 14).fill(Color.black))
+                                .overlay(alignment: .top) { Capsule().fill(Color(white: 0.12)).frame(width: 185, height: 30).padding(.top, 1) }
+                        } else {
+                            Text(tr("مفيش تذكير (الأيام البيض خلصت)")).font(AZFont.ui(11.5)).foregroundColor(AZ.muted)
+                        }
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.05)))
+            }
+        }
+        .padding(22)
+        .frame(width: 620)
+        .background(AZ.deepGradient)
+        .foregroundColor(.white)
+        .environment(\.layoutDirection, Lang.dir)
+        let r = ImageRenderer(content: board); r.scale = 2
+        if let img = r.nsImage, let d = StoryExport.png(img) {
+            try? d.write(to: dir.appendingPathComponent("fasting-white-days.png")); print("wrote")
+        }
+    }
+}

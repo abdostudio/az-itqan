@@ -3,6 +3,9 @@ import AppKit
 
 // MARK: - What goes on the card
 
+/// Sharing is kept for the iPhone version; on the Mac every entry point is hidden.
+enum StoryFeature { static let onMac = false }
+
 enum StoryPool {
     static let rotator = Rotator(key: "recent.story", memory: 25)
 
@@ -62,11 +65,30 @@ enum StoryPool {
         }()
         let pool = (items(kind).isEmpty ? items(.dhikr) : items(kind))
         let chosen = rotator.pick(pool.map { Msg($0.text, $0.source) })
-        var out = pool.first { $0.text == chosen.text && $0.source == (chosen.source ?? "") } ?? pool[0]
-        if !out.isQuran, out.text.count > 24, let r = out.text.range(of: "، ") {
-            out = StoryItem(kind: out.kind, text: out.text.replacingCharacters(in: r, with: "،\n"), source: out.source)
-        }
+        return tidy(pool.first { $0.text == chosen.text && $0.source == (chosen.source ?? "") } ?? pool[0])
+    }
+
+    /// Breaks a long dhikr/du'a at its first comma so it sits nicely on two lines.
+    static func tidy(_ item: StoryItem) -> StoryItem {
+        guard !item.isQuran, item.text.count > 24, let r = item.text.range(of: "، ") else { return item }
+        var out = item
+        out = StoryItem(kind: item.kind, text: item.text.replacingCharacters(in: r, with: "،\n"), source: item.source,
+                        note: item.note, noteSource: item.noteSource, notch: item.notch)
         return out
+    }
+
+    /// One card for today (same all day): rotates through dhikr, du'a and verses by date.
+    static func today() -> StoryItem {
+        let day = Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
+        let k: StoryItem.Kind = [.dhikr, .ayah, .dua, .dhikr, .hadith][day % 5]
+        let pool = items(k).isEmpty ? items(.dhikr) : items(k)
+        return tidy(pool[(day / 5) % pool.count])
+    }
+
+    /// The dhikr / du'a that just showed in the notch, as a card.
+    static func fromNotch(_ m: Msg, palestine: Bool) -> StoryItem {
+        let isDua = palestine || m.text.hasPrefix("اللهم") || m.text.hasPrefix("ربّ") || m.text.hasPrefix("ربنا") || m.text.hasPrefix("ربِّ")
+        return tidy(StoryItem(kind: isDua ? .dua : .dhikr, text: m.text, source: m.source ?? ""))
     }
 }
 
@@ -178,6 +200,7 @@ final class StoryShareModel: ObservableObject {
         refreshLabel()
     }
     func shuffle() { item = StoryPool.pick(only: only, engine: engine); refreshLabel() }
+    func set(_ it: StoryItem) { item = it; refreshLabel() }
     func refreshLabel() { item.notch = label.text(for: item, engine: engine) }
 }
 
@@ -195,7 +218,7 @@ struct StoryShareView: View {
                     .shadow(color: .black.opacity(0.4), radius: 18, y: 8)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    Text(tr("شارك ستوري")).font(AZFont.ui(19, .bold))
+                    Text(tr("شارك ستوري")).font(AZFont.ui(19, .bold)).foregroundColor(.white)
                     Text(tr("كل مرة بيطلع كارت جديد… ذِكر أو دعاء أو آية أو حديث"))
                         .font(AZFont.ui(11.5)).foregroundColor(AZ.muted).fixedSize(horizontal: false, vertical: true)
 
@@ -216,11 +239,7 @@ struct StoryShareView: View {
 
                     HStack(spacing: 8) {
                         action(tr("ستوري إنستجرام"), "camera.fill", primary: true) { instaStory() }
-                        action(tr("بوست إنستجرام"), "square.on.square") { instaPost() }
-                    }
-                    HStack(spacing: 8) {
-                        action(tr("حالة واتساب"), "circle.dashed") { whatsapp() }
-                        action("AirDrop", "airplayaudio") { airdrop() }
+                        action(tr("حالة واتساب"), "circle.dashed", primary: true) { whatsapp() }
                     }
                     HStack(spacing: 8) {
                         action(tr("حفظ"), "arrow.down.circle") { save() }
@@ -272,32 +291,20 @@ struct StoryShareView: View {
     }
 
     // Instagram/WhatsApp can't receive a story from a Mac app, so the image goes to the phone (AirDrop) or the clipboard.
-    @MainActor private func instaStory() {
+    /// Instagram and WhatsApp only accept a story/status from the phone app, so the card goes to the iPhone by AirDrop;
+    /// there, Share → Instagram → Stories / WhatsApp → My Status opens the story composer directly.
+    @MainActor private func instaStory() { toPhone(tr("على الموبايل: افتح الصورة ← مشاركة ← Instagram ← Stories")) }
+    @MainActor private func whatsapp() { toPhone(tr("على الموبايل: افتح الصورة ← مشاركة ← WhatsApp ← حالتي (My Status)")) }
+
+    @MainActor private func toPhone(_ howTo: String) {
         guard let img = StoryExport.image(model.item, post: false) else { return }
-        StoryExport.copy(img)
         if StoryExport.airDrop(img, post: false) {
-            model.status = tr("اختار موبايلك من AirDrop… وبعدين افتح إنستجرام ← ستوري ← الصورة")
+            model.status = tr("اختار موبايلك من AirDrop.") + "\n" + howTo
         } else {
-            StoryExport.save(img, post: false)
-            model.status = tr("AirDrop مش متاح… الصورة اتنسخت، واتحفظت في Downloads")
+            StoryExport.copy(img)
+            StoryExport.save(img, post: false, reveal: false)
+            model.status = tr("AirDrop مش شغّال (فعّل البلوتوث والواي فاي). الصورة اتحفظت في Downloads واتنسخت… ابعتها لموبايلك.") + "\n" + howTo
         }
-    }
-    @MainActor private func instaPost() {
-        guard let img = StoryExport.image(model.item, post: true) else { return }
-        StoryExport.save(img, post: true)
-        StoryExport.copy(img)
-        StoryExport.openInstagram()
-        model.status = tr("الصورة بمقاس البوست في Downloads… في إنستجرام دوس «إنشاء» واختارها")
-    }
-    @MainActor private func whatsapp() {
-        guard let img = StoryExport.image(model.item, post: false) else { return }
-        StoryExport.copy(img)
-        StoryExport.openWhatsApp()
-        model.status = tr("الصورة اتنسخت… في واتساب افتح «الحالة» والزقها (⌘V)، أو ابعتها لموبايلك بـ AirDrop")
-    }
-    @MainActor private func airdrop() {
-        guard let img = StoryExport.image(model.item, post: false) else { return }
-        model.status = StoryExport.airDrop(img, post: false) ? tr("اختار الجهاز من AirDrop") : tr("AirDrop مش متاح على الجهاز ده")
     }
     @MainActor private func save() {
         guard let img = StoryExport.image(model.item, post: false) else { return }
@@ -315,7 +322,7 @@ final class StoryShareWindowController {
     private var model: StoryShareModel?
     weak var engine: PrayerEngine?
 
-    func show() {
+    func show(_ start: StoryItem? = nil) {
         if window == nil {
             let m = StoryShareModel(engine: engine)
             model = m
@@ -334,6 +341,7 @@ final class StoryShareWindowController {
             model?.status = ""
             model?.shuffle()
         }
+        if let start { model?.set(start) }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }

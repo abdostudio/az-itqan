@@ -481,5 +481,10 @@ enum L10n {
         "شارك ستوري…": "Share a story…",
         "بعد «صلّيت» اقترح أشارك ذِكر ستوري": "After “I prayed”, suggest sharing a dhikr story",
         "آيات كروت المشاركة من نص مشروع Tanzil، والتفسير الميسّر من مجمع الملك فهد": "Quran text on share cards from the Tanzil Project; Tafsir al-Muyassar by King Fahd Complex",
+        "شارك %@ النهارده ستوري": "Share today's %@ as a story",
+        "على الموبايل: افتح الصورة ← مشاركة ← Instagram ← Stories": "On your phone: open the image → Share → Instagram → Stories",
+        "على الموبايل: افتح الصورة ← مشاركة ← WhatsApp ← حالتي (My Status)": "On your phone: open the image → Share → WhatsApp → My Status",
+        "اختار موبايلك من AirDrop.": "Pick your phone in AirDrop.",
+        "AirDrop مش شغّال (فعّل البلوتوث والواي فاي). الصورة اتحفظت في Downloads واتنسخت… ابعتها لموبايلك.": "AirDrop isn't on (turn on Bluetooth and Wi‑Fi). The image is saved to Downloads and copied… send it to your phone.",
     ]
 }

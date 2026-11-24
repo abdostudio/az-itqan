@@ -134,7 +134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         engine.onFasting = { [weak self] reasons in
             guard let self else { return }
             let detail = reasons.first.map { r in r.source.map { "«\(r.detail)» — \($0)" } ?? r.detail } ?? ""
-            self.notch.show(.fasting(reasons.map(\.title), detail), for: 20)
+            let phrase = Fasting.tomorrowPhrase(after: self.engine.now, adjust: self.settings.hijriAdjust)
+                ?? trf("بكرة إن شاء الله %@", reasons.map(\.title).joined(separator: " · "))
+            self.notch.show(.fasting([phrase], detail), for: 12)
         }
         notch.onLockNow = { [weak self] p in
             guard let self else { return }
@@ -146,7 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         notch.onConfirmOwed = { [weak self] in self?.confirmOwed() }
         notch.onOpenRamadan = { [weak self] in self?.ramadanWindow.show() }
         storyWindow.engine = engine
-        notch.onShare = { [weak self] in self?.storyWindow.show() }
+        notch.onShare = { [weak self] item in self?.storyWindow.show(item) }
         notch.onOpenAdhkar = { [weak self] k in self?.adhkarWindow.show(k) }
         engine.onAdhkar = { [weak self] k in
             self?.whenUnlocked {
@@ -407,7 +409,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .prayed:
             if owed?.prayer == p { owed = nil }
             engine.objectWillChange.send()      // refill the fuel line right away
-            if settings.shareHint {
+            if StoryFeature.onMac && settings.shareHint {
                 notch.show(.share(tr("تقبّل الله منك"), tr("شارك ذِكر النهارده؟ الدال على الخير كفاعله")), for: 8)
             } else {
                 notch.show(.info(tr("تقبّل الله منك"), tr("اللهم اجعلنا من المقيمين الصلاة")), for: 6)
@@ -464,7 +466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func runDemo() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            self.notch.show(.fasting(self.engine.fastingTomorrow.map(\.title).isEmpty ? [tr("يوم الخميس")] : self.engine.fastingTomorrow.map(\.title),
+            self.notch.show(.fasting([Fasting.tomorrowPhrase(after: self.engine.now, adjust: self.settings.hijriAdjust) ?? tr("بكرة الخميس")],
                                            tr("«تُعرض الأعمال يوم الاثنين والخميس» — رواه الترمذي")), for: 6)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
@@ -499,8 +501,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             i.isEnabled = false
             menu.addItem(i)
         }
-        if let f = engine.fastingTomorrow.first {
-            let i = NSMenuItem(title: trf("بكرة إن شاء الله: %@", f.title), action: nil, keyEquivalent: "")
+        if let line = Fasting.status(on: engine.now, adjust: settings.hijriAdjust)?.text
+            ?? Fasting.tomorrowPhrase(after: engine.now, adjust: settings.hijriAdjust).map({ $0 + tr(" إن شاء الله") }) {
+            let i = NSMenuItem(title: line, action: nil, keyEquivalent: "")
             i.isEnabled = false
             menu.addItem(.separator()); menu.addItem(i)
         }
@@ -508,7 +511,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: tr("أذكار الصباح"), action: #selector(openMorning), keyEquivalent: "").target = self
         menu.addItem(withTitle: tr("أذكار المساء"), action: #selector(openEvening), keyEquivalent: "").target = self
         menu.addItem(withTitle: tr("خطتي لرمضان…"), action: #selector(openRamadan), keyEquivalent: "").target = self
-        menu.addItem(withTitle: tr("شارك ستوري…"), action: #selector(openStory), keyEquivalent: "").target = self
+        if StoryFeature.onMac {
+            menu.addItem(withTitle: tr("شارك ستوري…"), action: #selector(openStory), keyEquivalent: "").target = self
+        }
         if let r = UpdateChecker.shared.latest {
             menu.addItem(withTitle: trf("حمّل التحديث %@…", r.version), action: #selector(downloadUpdate), keyEquivalent: "").target = self
         }

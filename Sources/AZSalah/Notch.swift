@@ -97,7 +97,7 @@ final class NotchModel: ObservableObject {
 
     var onLockNow: ((Prayer) -> Void)?
     var onOpenSettings: (() -> Void)?
-    var onShare: (() -> Void)?
+    var onShare: ((StoryItem?) -> Void)?
 
     private var alertToken = 0
 
@@ -144,6 +144,12 @@ final class NotchModel: ObservableObject {
     var fuelBar: CGFloat { onCamera ? 6 : 0 }
     var compactSize: CGSize { CGSize(width: notchWidth + 2 * Self.levelWing[effectiveLevel], height: notchHeight + fuelBar) }
     var isSadaqa: Bool { if case .sadaqa = alert { return true }; return false }
+    var fastingText: String? { if case .fasting(let t, _) = alert { return t.joined(separator: " · ") + tr(" — نوِيت؟") }; return nil }
+    /// Fasting reminder: a slim one-line strip like the dhikr, fitted to its text.
+    var fastingSize: CGSize {
+        let w = ((fastingText ?? "") as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12.5, weight: .semibold)]).width
+        return CGSize(width: min(max(notchWidth + 40, w + 64), 560), height: notchHeight + 26)
+    }
     var isRahim: Bool { if case .rahim = alert { return true }; return false }
     var sadaqaSize: CGSize { CGSize(width: max(notchWidth + 2 * 150, 500), height: notchHeight + 128) }
     var peekSize: CGSize { CGSize(width: max(notchWidth + 2 * Self.side, 480), height: notchHeight + 52) }
@@ -154,10 +160,10 @@ final class NotchModel: ObservableObject {
         let fitted = (ambient?.textWidth ?? 0) + 44
         return CGSize(width: min(max(notchWidth + 40, fitted), 520), height: notchHeight + 24)
     }
-    var expandedSize: CGSize { CGSize(width: max(notchWidth + 2 * 140, 520), height: notchHeight + 330) }
+    var expandedSize: CGSize { CGSize(width: max(notchWidth + 2 * 140, 520), height: notchHeight + (StoryFeature.onMac ? 414 : 318)) }
     var currentSize: CGSize {
         if expanded { return expandedSize }
-        if alert != nil { return isPeek ? peekSize : (isSadaqa || isRahim ? sadaqaSize : alertSize) }
+        if alert != nil { return isPeek ? peekSize : fastingText != nil ? fastingSize : (isSadaqa || isRahim ? sadaqaSize : alertSize) }
         return shownAmbient != nil ? ambientSize : compactSize
     }
 }
@@ -458,7 +464,7 @@ final class NotchController {
 
     var onLockNow: ((Prayer) -> Void)? { didSet { panels.forEach { $0.model.onLockNow = onLockNow } } }
     var onOpenSettings: (() -> Void)? { didSet { panels.forEach { $0.model.onOpenSettings = onOpenSettings } } }
-    var onShare: (() -> Void)? { didSet { panels.forEach { $0.model.onShare = onShare } } }
+    var onShare: ((StoryItem?) -> Void)? { didSet { panels.forEach { $0.model.onShare = onShare } } }
     var onConfirmOwed: (() -> Void)? { didSet { panels.forEach { $0.model.onConfirmOwed = onConfirmOwed } } }
     var onOpenRamadan: (() -> Void)? { didSet { panels.forEach { $0.model.onOpenRamadan = onOpenRamadan } } }
     var onNaflCommit: ((Nafl) -> Void)? { didSet { panels.forEach { $0.model.onNaflCommit = onNaflCommit } } }
@@ -605,6 +611,10 @@ struct NotchRootView: View {
             if case .peek(let msg, let pal) = a {
                 PeekNotch(model: model, msg: msg, palestine: pal)
                     .frame(width: model.peekSize.width, height: model.peekSize.height, alignment: .top)
+                    .transition(fadeIn)
+            } else if let t = model.fastingText {
+                FastingSlim(model: model, text: t)
+                    .frame(width: model.fastingSize.width, height: model.fastingSize.height, alignment: .top)
                     .transition(fadeIn)
             } else if case .rahim(let id, let m, let idea) = a {
                 RahimNotch(model: model, personID: id, msg: m, idea: idea)
@@ -910,6 +920,8 @@ struct PeekNotch: View {
     @ObservedObject var model: NotchModel
     let msg: Msg
     let palestine: Bool
+    @StateObject private var hv = HoverState()
+    private var hover: Bool { hv.on }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -925,10 +937,109 @@ struct PeekNotch: View {
                         .multilineTextAlignment(.center)
                     if let s = msg.source { Text(s).font(AZFont.ui(9.5)).foregroundColor(AZ.muted).lineLimit(1) }
                 }
+                if StoryFeature.onMac {
+                Spacer(minLength: 0)
+                Button { model.onShare?(StoryPool.fromNotch(msg, palestine: palestine)); model.dismissAlert() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.and.arrow.up").font(.system(size: 10.5, weight: .semibold))
+                        if hover { Text(tr("شارك")).font(AZFont.ui(10.5, .semibold)) }
+                    }
+                    .foregroundColor(hover ? AZ.navy : AZ.lime)
+                    .padding(.horizontal, hover ? 10 : 7).padding(.vertical, 5)
+                    .background(Capsule().fill(hover ? AnyShapeStyle(AZ.accentGradient) : AnyShapeStyle(AZ.lime.opacity(0.14))))
+                }.buttonStyle(.plain).help(tr("شارك ستوري"))
+                }
             }
             .padding(.horizontal, 22)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .onHover { h in withAnimation(.easeOut(duration: 0.15)) { hv.on = h } }
+    }
+}
+
+/// "Share today's card" row in the Today tab: a small preview of the card + a clear button.
+struct ShareTodayCard: View {
+    let share: (StoryItem) -> Void
+    var body: some View {
+        let item = StoryPool.today()
+        Button { share(item) } label: {
+            HStack(spacing: 10) {
+                // mini preview of the real story card
+                StoryCard(item: item)
+                    .scaleEffect(30.0 / 540.0, anchor: .topLeading)
+                    .frame(width: 30, height: 53, alignment: .topLeading)
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(trf("شارك %@ النهارده ستوري", item.title)).font(AZFont.ui(12, .semibold))
+                    Text(item.text.replacingOccurrences(of: "\n", with: " ")).font(item.isQuran ? AZFont.quran(11) : AZFont.ui(10))
+                        .foregroundColor(AZ.muted).lineLimit(1)
+                }
+                Spacer(minLength: 6)
+                HStack(spacing: 5) {
+                    Image(systemName: "square.and.arrow.up").font(.system(size: 10.5, weight: .bold))
+                    Text(tr("شارك")).font(AZFont.ui(11, .bold))
+                }
+                .foregroundColor(AZ.navy)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(AZ.accentGradient))
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .frame(maxWidth: .infinity, minHeight: 54)
+            .background(RoundedRectangle(cornerRadius: 14).fill(LinearGradient(colors: [item.tint.opacity(0.10), Color.white.opacity(0.03)], startPoint: .leading, endPoint: .trailing)))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(item.tint.opacity(0.3), lineWidth: 0.6))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The evening fasting reminder as a slim strip under the notch: moon + one line.
+struct FastingSlim: View {
+    @ObservedObject var model: NotchModel
+    let text: String
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: model.notchHeight)
+            HStack(spacing: 7) {
+                Image(systemName: "moon.stars.fill").font(.system(size: 11)).foregroundColor(AZ.gold)
+                Text(text).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.75)
+            }
+            .padding(.horizontal, 16).padding(.bottom, 3)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { model.dismissAlert() }
+    }
+}
+
+/// Fasting line: moon + "النهارده تاني يوم من الأيام البيض · فاضل بكرة" + ● ● ○.
+struct FastingChip: View {
+    let status: FastingStatus
+    var compact = false
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "moon.stars.fill").foregroundColor(AZ.gold)
+            if !compact {
+                Text(status.text).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            if status.dots > 0 {
+                HStack(spacing: 3) {
+                    ForEach(0..<status.dots, id: \.self) { i in
+                        Circle()
+                            .fill(i < status.filled ? AnyShapeStyle(AZ.gold) : AnyShapeStyle(Color.clear))
+                            .overlay(Circle().strokeBorder(AZ.gold.opacity(0.8), lineWidth: 1))
+                            .frame(width: 6, height: 6)
+                    }
+                }
+                .environment(\.layoutDirection, Lang.dir)
+            }
+        }
+        .font(AZFont.ui(10.5, .medium))
+        .padding(.horizontal, 9).padding(.vertical, 4)
+        .background(Capsule().fill(AZ.gold.opacity(0.13)))
+        .overlay(Capsule().strokeBorder(AZ.gold.opacity(0.4), lineWidth: 0.5))
+        .help(status.text)
     }
 }
 
@@ -1030,7 +1141,7 @@ struct AlertNotch: View {
         switch alert {
         case .pre(_, let t): return trf("الأذان بعد %@ — احفظ شغلك", AR.countdown(t.timeIntervalSince(engine.now)))
         case .peek(let m, _): return m.text
-        case .fasting(let titles, _): return tr("بكرة إن شاء الله ") + titles.joined(separator: " · ") + tr(" — نوِيت؟")
+        case .fasting(let titles, _): return titles.joined(separator: " · ") + tr(" — نوِيت؟")
         case .deferred: return tr("شكلك في ميتنج… هنقفل الشاشة أول ما تخلص")
         case .info(_, let b): return b
         case .ramadan(_, let b): return b
@@ -1129,7 +1240,7 @@ struct AlertNotch: View {
                     .background(Capsule().fill(AZ.accentGradient))
             }.buttonStyle(.plain)
         } else if case .share = alert {
-            Button { model.onShare?(); model.dismissAlert() } label: {
+            Button { model.onShare?(nil); model.dismissAlert() } label: {
                 Label(tr("شارك"), systemImage: "square.and.arrow.up").font(AZFont.ui(11, .semibold)).foregroundColor(AZ.navy)
                     .padding(.horizontal, 12).padding(.vertical, 5)
                     .background(Capsule().fill(AZ.accentGradient))
@@ -1209,8 +1320,8 @@ struct ExpandedNotch: View {
                     Text(trf("%@ بعد %@", next.prayer.arabic(friday: engine.isFriday), AR.countdown(next.time.timeIntervalSince(engine.now))))
                         .font(AZFont.ui(11.5, .semibold))
                     Spacer()
-                    if let f = engine.fastingToday.first {
-                        Label(f.title, systemImage: "moon.stars").font(AZFont.ui(10.5)).foregroundColor(AZ.gold).lineLimit(1)
+                    if model.owedPrayer != nil, let f = Fasting.status(on: engine.now, adjust: engine.settings.hijriAdjust) {
+                        FastingChip(status: f, compact: true)
                     }
                 }
                 GeometryReader { g in
@@ -1236,6 +1347,11 @@ struct ExpandedNotch: View {
             }
             .padding(.horizontal, 18)
 
+            if StoryFeature.onMac {
+                ShareTodayCard { model.onShare?($0) }
+                    .padding(.horizontal, 18)
+            }
+
             HStack(spacing: 8) {
                 if let owed = model.owedPrayer {
                     HStack(spacing: 6) {
@@ -1251,15 +1367,10 @@ struct ExpandedNotch: View {
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .background(Capsule().fill(AZ.gold.opacity(0.13)))
                     .overlay(Capsule().strokeBorder(AZ.gold.opacity(0.4), lineWidth: 0.5))
-                } else if let f = engine.fastingTomorrow.first {
-                    HStack(spacing: 5) {
-                        Image(systemName: "moon.stars.fill").foregroundColor(AZ.gold)
-                        Text(trf("بكرة إن شاء الله: %@", f.title)).lineLimit(1)
-                    }
-                    .font(AZFont.ui(10.5, .medium))
-                    .padding(.horizontal, 9).padding(.vertical, 4)
-                    .background(Capsule().fill(AZ.gold.opacity(0.13)))
-                    .overlay(Capsule().strokeBorder(AZ.gold.opacity(0.35), lineWidth: 0.5))
+                } else if let f = Fasting.status(on: engine.now, adjust: engine.settings.hijriAdjust) {
+                    FastingChip(status: f)
+                } else if let t = Fasting.tomorrowPhrase(after: engine.now, adjust: engine.settings.hijriAdjust) {
+                    FastingChip(status: FastingStatus(text: t + tr(" إن شاء الله")))
                 }
                 Spacer(minLength: 4)
                 if false, let k = MorningEvening.current(engine: engine) {
@@ -1299,10 +1410,10 @@ struct ExpandedNotch: View {
             Spacer(minLength: 0)
         }
         .overlay(alignment: .leading) {
-            Button { model.onShare?() } label: {
+            if StoryFeature.onMac { Button { model.onShare?(nil) } label: {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 11.5)).foregroundColor(AZ.muted)
                     .frame(width: 24, height: 24).background(Circle().fill(Color.white.opacity(0.06)))
-            }.buttonStyle(.plain).help(tr("شارك ستوري"))
+            }.buttonStyle(.plain).help(tr("شارك ستوري")) }
         }
         .overlay(alignment: .trailing) {
             Button { model.onOpenSettings?() } label: {
