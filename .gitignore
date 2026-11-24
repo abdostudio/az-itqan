@@ -1,0 +1,15 @@
+# Build output
+.build/
+dist/
+*.zip
+
+# macOS
+.DS_Store
+
+# Generated media (large — kept locally, not in the repo)
+promo/*.mp4
+promo/frames/
+promo/demo/
+screenshots/
+preview/
+mockups/
