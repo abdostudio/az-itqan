@@ -67,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         closeOtherCopies()
+        watchWindowsForDock()
         wire()
         notch.start()
         idleObserver = settings.$idleLevel.dropFirst().sink { [weak self] _ in
@@ -523,6 +524,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: tr("خروج من AZ Itqan"), action: #selector(quit), keyEquivalent: "q").target = self
     }
 
+    // MARK: Dock icon while a window is open
+
+    /// The app lives in the notch (no Dock icon). While one of its windows is open (settings, share, adhkar,
+    /// Ramadan) it shows in the Dock and Cmd+Tab so it can't get lost behind other apps; it hides again when they close.
+    private func watchWindowsForDock() {
+        let nc = NotificationCenter.default
+        for name in [NSWindow.didBecomeKeyNotification, NSWindow.willCloseNotification,
+                     NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification] {
+            nc.addObserver(forValue: name) { [weak self] in
+                DispatchQueue.main.async { self?.updateDockIcon() }
+            }
+        }
+    }
+
+    private var appWindows: [NSWindow] {
+        NSApp.windows.filter { !($0 is NSPanel) && $0.styleMask.contains(.titled) && ($0.isVisible || $0.isMiniaturized) }
+    }
+
+    private func updateDockIcon() {
+        let want: NSApplication.ActivationPolicy = appWindows.isEmpty ? .accessory : .regular
+        guard NSApp.activationPolicy() != want else { return }
+        NSApp.setActivationPolicy(want)
+        if want == .regular { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    /// Clicking the Dock icon brings the open windows back to the front.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        for w in appWindows {
+            if w.isMiniaturized { w.deminiaturize(nil) }
+            w.makeKeyAndOrderFront(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        return false
+    }
+
     @objc private func openSettings() { settingsWindow.show() }
     @objc private func openRamadan() { ramadanWindow.show() }
     @objc private func openStory() { storyWindow.show() }
@@ -531,4 +567,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openEvening() { adhkarWindow.show(.evening) }
     @objc private func testLockAction() { testLock() }
     @objc private func quit() { NSApp.terminate(nil) }
+}
+
+private extension NotificationCenter {
+    func addObserver(forValue name: Notification.Name, _ run: @escaping () -> Void) {
+        addObserver(forName: name, object: nil, queue: .main) { _ in run() }
+    }
 }

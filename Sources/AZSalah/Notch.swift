@@ -226,7 +226,7 @@ final class NotchPanel {
     private let panel: NSPanel
     private var collapseWork: DispatchWorkItem?
     private var openWork: DispatchWorkItem?
-    static let baseCanvas = CGSize(width: 640, height: 400)
+    static let baseCanvas = CGSize(width: 640, height: 480)
     /// Room for the island at its current scale.
     private var canvas: CGSize {
         let s = max(1, model.scale)
@@ -1247,7 +1247,7 @@ struct AlertNotch: View {
             }.buttonStyle(.plain)
         } else if case .ramadan = alert {
             Button { model.onOpenRamadan?(); model.dismissAlert() } label: {
-                Text(tr("خطتي")).font(AZFont.ui(11, .semibold)).foregroundColor(AZ.navy)
+                Text(RamadanPlan.shared.goals.isEmpty ? tr("سجّل خطتك") : tr("افتح خطتي")).font(AZFont.ui(11, .semibold)).foregroundColor(AZ.navy)
                     .padding(.horizontal, 12).padding(.vertical, 5)
                     .background(Capsule().fill(LinearGradient(colors: [AZ.gold, AZ.lime], startPoint: .leading, endPoint: .trailing)))
             }.buttonStyle(.plain)
@@ -1475,7 +1475,10 @@ struct ExpandedNotch: View {
                         .font(AZFont.ui(9.5)).foregroundColor(AZ.muted).lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.left").font(.system(size: 10, weight: .bold)).foregroundColor(AZ.gold)
+                Text(plan.goals.isEmpty ? tr("سجّل خطتك") : tr("خطتي"))
+                    .font(AZFont.ui(10.5, .bold)).foregroundColor(AZ.navy).lineLimit(1).fixedSize()
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(LinearGradient(colors: [AZ.gold, AZ.lime], startPoint: .leading, endPoint: .trailing)))
             }
             .padding(10)
             .frame(maxWidth: .infinity, minHeight: 74)
